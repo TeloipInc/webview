@@ -1,8 +1,9 @@
 package webview
 
 /*
-#cgo linux openbsd freebsd CXXFLAGS: -DWEBVIEW_GTK -std=c++11
-#cgo linux openbsd freebsd pkg-config: gtk+-3.0 webkit2gtk-4.0
+#cgo linux openbsd freebsd CXXFLAGS: -DWEBVIEW_GTK -std=c++17
+#cgo openbsd freebsd pkg-config: gtk+-3.0 webkit2gtk-4.0
+#cgo linux pkg-config: gtk+-3.0 webkit2gtk-4.0 x11
 
 #cgo darwin CXXFLAGS: -DWEBVIEW_COCOA -std=c++11
 #cgo darwin LDFLAGS: -framework WebKit
@@ -74,6 +75,15 @@ const (
 )
 
 type WebView interface {
+	// AddWebView adds the webview to window. If debug is non-zero - developer
+	// tools will be enabled (if the platform supports them).
+	AddWebView(debug bool)
+
+	// Show shows the WebView window created with AddWebView.
+	Show(hideOnClose bool)
+
+	// Hide hides the WebView window created with AddWebView
+	Hide()
 
 	// Run runs the main loop until it's terminated. After this function exits -
 	// you must destroy the webview.
@@ -147,24 +157,31 @@ func boolToInt(b bool) C.int {
 	return 0
 }
 
-// New calls NewWindow to create a new window and a new webview instance. If debug
-// is non-zero - developer tools will be enabled (if the platform supports them).
-func New(debug bool) WebView { return NewWindow(debug, nil) }
-
-// NewWindow creates a new webview instance. If debug is non-zero - developer
-// tools will be enabled (if the platform supports them). Window parameter can be
-// a pointer to the native window handle. If it's non-null - then child WebView is
-// embedded into the given parent window. Otherwise a new window is created.
+// New creates a new webview instance. Window parameter can be a pointer to the native
+// window handle. If it's non-null - then child WebView is embedded into the given
+// parent window. Otherwise a new window is created.
 // Depending on the platform, a GtkWindow, NSWindow or HWND pointer can be passed
 // here.
-func NewWindow(debug bool, window unsafe.Pointer) WebView {
+func New(window unsafe.Pointer) WebView {
 	w := &webview{}
-	w.w = C.webview_create(boolToInt(debug), window)
+	w.w = C.webview_create(window)
 	return w
 }
 
 func (w *webview) Destroy() {
 	C.webview_destroy(w.w)
+}
+
+func (w *webview) AddWebView(debug bool) {
+	C.webview_addview(w.w, boolToInt(debug))
+}
+
+func (w *webview) Show(hideOnClose bool) {
+	C.webview_show(w.w, boolToInt(hideOnClose))
+}
+
+func (w *webview) Hide() {
+	C.webview_hide(w.w)
 }
 
 func (w *webview) Run() {

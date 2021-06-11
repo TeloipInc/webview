@@ -12,7 +12,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 int main()
 #endif
 {
-  webview::webview w(true, nullptr);
+  webview::webview w(nullptr);
+  w.add_view(true);
   w.set_title("Example");
   w.set_size(480, 320, WEBVIEW_HINT_NONE);
   w.set_size(180, 120, WEBVIEW_HINT_MIN);
@@ -42,6 +43,7 @@ int main()
       </script>
     </html>
   )");
+  w.show(false);
   w.run();
   return 0;
 }

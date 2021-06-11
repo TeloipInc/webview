@@ -1,3 +1,3 @@
-module github.com/webview/webview
+module github.com/TeloipInc/webview
 
 go 1.13

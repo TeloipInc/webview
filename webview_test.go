@@ -8,8 +8,10 @@ import (
 )
 
 func Example() {
-	w := New(true)
+	w := New(nil)
 	defer w.Destroy()
+
+	w.AddWebView(true)
 	w.SetTitle("Hello")
 	w.Bind("noop", func() string {
 		log.Println("hello")
@@ -39,6 +41,7 @@ func Example() {
 			</script>
 		</html>
 	)`)
+	w.Show(false)
 	w.Run()
 }
 

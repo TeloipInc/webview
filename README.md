@@ -23,7 +23,7 @@ If you are interested in writing Webview apps in C/C++, [skip to the next sectio
 Install Webview library with `go get`:
 
 ```
-$ go get github.com/webview/webview
+$ go get github.com/TeloipInc/webview
 ```
 
 Import the package and start using it:
@@ -31,12 +31,13 @@ Import the package and start using it:
 ```go
 package main
 
-import "github.com/webview/webview"
+import "github.com/TeloipInc/webview"
 
 func main() {
 	debug := true
-	w := webview.New(debug)
+	w := webview.New(nil)
 	defer w.Destroy()
+	w.AddWebView(debug)
 	w.SetTitle("Minimal webview example")
 	w.SetSize(800, 600, webview.HintNone)
 	w.Navigate("https://en.m.wikipedia.org/wiki/Main_Page")
@@ -155,7 +156,7 @@ Build it:
 
 ```bash
 # Linux
-$ g++ main.c `pkg-config --cflags --libs gtk+-3.0 webkit2gtk-4.0` -o webview-example
+$ g++ main.c `pkg-config --cflags --libs gtk+-3.0 webkit2gtk-4.0 x11` -o webview-example
 # MacOS
 $ g++ main.c -std=c++11 -framework WebKit -o webview-example
 # Windows (x64)
