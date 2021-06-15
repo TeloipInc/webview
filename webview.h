@@ -1108,7 +1108,7 @@ private:
 class win32_edge_engine {
 public:
   win32_edge_engine(void *window) 
-    : m_window(*(static_cast<HWND *>(window))) {}
+    : m_window(static_cast<HWND>(window)) {}
 
   int init_in_run_thread() {
     return true;
