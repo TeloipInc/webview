@@ -44,6 +44,10 @@ WEBVIEW_API webview_t webview_create(void *window);
 // Destroys a webview and closes the native window.
 WEBVIEW_API void webview_destroy(webview_t w);
 
+// Returns non-zero if webview_addview and subsequent webview calls need to 
+// happen on the same thread where webview_run will be called. 
+WEBVIEW_API int webview_init_in_run_thread(webview_t w);
+
 // Adds a hidden webview to the window. If debug is non-zero - developer tools will
 // be enabled (if the platform supports them).
 WEBVIEW_API void webview_addview(webview_t w, int debug);
@@ -456,6 +460,10 @@ class gtk_webkit_engine {
 public:
   gtk_webkit_engine(void *window)
       : m_window(static_cast<GtkWidget *>(window)) {
+  }
+
+  int init_in_run_thread() {
+    return false;
   }
 
   void add_view(bool debug) {
@@ -1099,8 +1107,15 @@ private:
 
 class win32_edge_engine {
 public:
-  win32_edge_engine(bool debug, void *window) {
-    if (window == nullptr) {
+  win32_edge_engine(void *window) 
+    : m_window(*(static_cast<HWND *>(window))) {}
+
+  int init_in_run_thread() {
+    return true;
+  }
+
+  void add_view(bool debug) {
+    if (m_window == nullptr) {
       HINSTANCE hInstance = GetModuleHandle(nullptr);
       HICON icon = (HICON)LoadImage(
           hInstance, IDI_APPLICATION, IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
@@ -1145,18 +1160,23 @@ public:
             return 0;
           });
       RegisterClassEx(&wc);
-      m_window = CreateWindow("webview", "", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
+      m_window = CreateWindowEx(WS_EX_TOOLWINDOW, "webview", "", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
                               CW_USEDEFAULT, 640, 480, nullptr, nullptr,
                               GetModuleHandle(nullptr), nullptr);
       SetWindowLongPtr(m_window, GWLP_USERDATA, (LONG_PTR)this);
-    } else {
-      m_window = *(static_cast<HWND *>(window));
     }
 
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+
+    // move off screen
+    RECT desktop, thisw;
+    GetWindowRect(GetDesktopWindow(), &desktop);
+    GetClientRect(m_window, &thisw);
+    SetWindowPos(m_window, nullptr, desktop.right, desktop.bottom, thisw.right, thisw.bottom, 0);
+
+    // the window needs to be shown on screen while browser->embed is happenning for the webview
+    // component to show up properly inside the window.
     ShowWindow(m_window, SW_SHOW);
-    UpdateWindow(m_window);
-    SetFocus(m_window);
 
     auto cb =
         std::bind(&win32_edge_engine::on_message, this, std::placeholders::_1);
@@ -1167,6 +1187,7 @@ public:
     }
 
     m_browser->resize(m_window);
+    this->hide();
   }
 
   void run() {
@@ -1184,9 +1205,32 @@ public:
         delete f;
       } else if (msg.message == WM_QUIT) {
         return;
+      } else if (msg.message == WM_CLOSE) {
+        if (m_hide_on_close) {
+          this->hide();
+        } else {
+          // quit
+          return;
+        }
       }
     }
   }
+  void show(bool hide_on_close) { 
+    RECT desktop, thisw;
+    GetWindowRect(GetDesktopWindow(), &desktop);
+    GetClientRect(m_window, &thisw);
+
+    // center on screen
+    int xPos = (desktop.right - thisw.right) / 2;
+    int yPos = (desktop.bottom - thisw.bottom) / 2;
+    SetWindowPos(m_window, HWND_TOPMOST, xPos, yPos, thisw.right, thisw.bottom, 0);
+
+    m_hide_on_close = hide_on_close; 
+    ShowWindow(m_window, SW_SHOW);
+    UpdateWindow(m_window);
+    SetFocus(m_window);
+  }
+  void hide() { ShowWindow(m_window, SW_HIDE); }
   void *window() { return (void *)m_window; }
   void terminate() { PostQuitMessage(0); }
   void dispatch(dispatch_fn_t f) {
@@ -1232,6 +1276,7 @@ public:
 private:
   virtual void on_message(const std::string msg) = 0;
 
+  bool m_hide_on_close;
   HWND m_window;
   POINT m_minsz = POINT{0, 0};
   POINT m_maxsz = POINT{0, 0};
@@ -1340,6 +1385,10 @@ WEBVIEW_API webview_t webview_create(void *wnd) {
 
 WEBVIEW_API void webview_destroy(webview_t w) {
   delete static_cast<webview::webview *>(w);
+}
+
+WEBVIEW_API int webview_init_in_run_thread(webview_t w) {
+  return static_cast<webview::webview *>(w)->init_in_run_thread();
 }
 
 WEBVIEW_API void webview_addview(webview_t w, int debug) {

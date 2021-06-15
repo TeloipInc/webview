@@ -75,6 +75,10 @@ const (
 )
 
 type WebView interface {
+	// InitInRunThread returns true if AddWebView and subsequent WebView calls
+	// must happen on the same thread with Run().
+	InitInRunThread() bool
+
 	// AddWebView adds the webview to window. If debug is non-zero - developer
 	// tools will be enabled (if the platform supports them).
 	AddWebView(debug bool)
@@ -157,6 +161,10 @@ func boolToInt(b bool) C.int {
 	return 0
 }
 
+func intToBool(i C.int) bool {
+	return (i != 0)
+}
+
 // New creates a new webview instance. Window parameter can be a pointer to the native
 // window handle. If it's non-null - then child WebView is embedded into the given
 // parent window. Otherwise a new window is created.
@@ -170,6 +178,10 @@ func New(window unsafe.Pointer) WebView {
 
 func (w *webview) Destroy() {
 	C.webview_destroy(w.w)
+}
+
+func (w *webview) InitInRunThread() bool {
+	return intToBool(C.webview_init_in_run_thread(w.w))
 }
 
 func (w *webview) AddWebView(debug bool) {
