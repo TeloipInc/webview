@@ -639,7 +639,13 @@ id operator"" _str(const char *s, std::size_t) {
 
 class cocoa_wkwebview_engine {
 public:
-  cocoa_wkwebview_engine(bool debug, void *window) {
+  cocoa_wkwebview_engine(void *window) : m_window(static_cast<id>(window)){}
+
+  int init_in_run_thread() {
+    return true;
+  }
+
+  void add_view(bool debug) {
     // Application
     id app = ((id(*)(id, SEL))objc_msgSend)("NSApplication"_cls,
                                             "sharedApplication"_sel);
@@ -672,14 +678,12 @@ public:
                                           delegate);
 
     // Main window
-    if (window == nullptr) {
+    if (m_window == nullptr) {
       m_window = ((id(*)(id, SEL))objc_msgSend)("NSWindow"_cls, "alloc"_sel);
       m_window =
           ((id(*)(id, SEL, CGRect, int, unsigned long, int))objc_msgSend)(
               m_window, "initWithContentRect:styleMask:backing:defer:"_sel,
               CGRectMake(0, 0, 0, 0), 0, NSBackingStoreBuffered, 0);
-    } else {
-      m_window = (id)window;
     }
 
     // Webview
@@ -747,6 +751,15 @@ public:
                                           nullptr);
   }
   ~cocoa_wkwebview_engine() { close(); }
+
+  // implementation details references:
+  //   https://developer.apple.com/documentation/appkit/nsapplication/app_windows
+  //   https://developer.apple.com/documentation/appkit/nsapplication/1428733-hide
+  //   http://www.knowstack.com/cocoa-delegate-design-pattern/
+  //   https://medium.com/@venj/hide-window-instead-of-close-it-when-clicks-the-close-button-25768e41ee2d
+  void show(bool hide_on_close) { /* TODO: implement for Mac */ }
+  void hide() { /* TODO: implement for Mac */ }  
+
   void *window() { return (void *)m_window; }
   void terminate() {
     close();
