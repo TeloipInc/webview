@@ -1136,7 +1136,12 @@ public:
               w->m_browser->resize(hwnd);
               break;
             case WM_CLOSE:
-              DestroyWindow(hwnd);
+              if (w->m_hide_on_close) {
+                w->hide();
+              }
+              else {
+                DestroyWindow(hwnd);
+              }            
               break;
             case WM_DESTROY:
               w->terminate();
@@ -1191,6 +1196,8 @@ public:
   }
 
   void run() {
+    m_main_thread = GetCurrentThreadId();
+
     MSG msg;
     BOOL res;
     while ((res = GetMessage(&msg, nullptr, 0, 0)) != -1) {
@@ -1205,25 +1212,11 @@ public:
         delete f;
       } else if (msg.message == WM_QUIT) {
         return;
-      } else if (msg.message == WM_CLOSE) {
-        if (m_hide_on_close) {
-          this->hide();
-        } else {
-          // quit
-          return;
-        }
       }
     }
   }
   void show(bool hide_on_close) { 
-    RECT desktop, thisw;
-    GetWindowRect(GetDesktopWindow(), &desktop);
-    GetClientRect(m_window, &thisw);
-
-    // center on screen
-    int xPos = (desktop.right - thisw.right) / 2;
-    int yPos = (desktop.bottom - thisw.bottom) / 2;
-    SetWindowPos(m_window, HWND_TOPMOST, xPos, yPos, thisw.right, thisw.bottom, 0);
+    center_on_screen();
 
     m_hide_on_close = hide_on_close; 
     ShowWindow(m_window, SW_SHOW);
@@ -1275,6 +1268,26 @@ public:
 
 private:
   virtual void on_message(const std::string msg) = 0;
+
+  void center_on_screen() {
+    int nWidth = GetSystemMetrics(SM_CXSCREEN);
+    int nHeight = GetSystemMetrics(SM_CYSCREEN);
+    RECT thisw;
+    GetWindowRect(m_window, &thisw);
+
+    int width = thisw.right - thisw.left;
+    int height = thisw.bottom - thisw.top;
+
+    int xPos = (nWidth - width) / 2;
+    int yPos = (nHeight - height) / 2;
+
+    // keep within the desktop
+    if (xPos < 0) xPos = 0;
+    if (yPos < 0) yPos = 0;
+    if (xPos + width > nWidth)   xPos = nWidth - width;
+    if (yPos + height > nHeight) yPos = nHeight - height;
+    SetWindowPos(m_window, HWND_TOPMOST, xPos, yPos, width, height, 0);
+  }
 
   bool m_hide_on_close;
   HWND m_window;
