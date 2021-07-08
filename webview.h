@@ -1206,6 +1206,11 @@ public:
 
     m_browser->resize(m_window);
     this->hide();
+
+    // switch back to overlapped
+    long style = GetWindowLong(m_window, GWL_EXSTYLE);
+    style &= ~WS_EX_TOOLWINDOW;
+    SetWindowLong(m_window, GWL_EXSTYLE, style);
   }
 
   void run() {
@@ -1269,7 +1274,7 @@ public:
       r.bottom = height;
       AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, 0);
       SetWindowPos(
-          m_window, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top,
+          m_window, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top,
           SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE | SWP_FRAMECHANGED);
       m_browser->resize(m_window);
     }
@@ -1299,7 +1304,7 @@ private:
     if (yPos < 0) yPos = 0;
     if (xPos + width > nWidth)   xPos = nWidth - width;
     if (yPos + height > nHeight) yPos = nHeight - height;
-    SetWindowPos(m_window, HWND_TOPMOST, xPos, yPos, width, height, 0);
+    SetWindowPos(m_window, nullptr, xPos, yPos, width, height, 0);
   }
 
   bool m_hide_on_close;
