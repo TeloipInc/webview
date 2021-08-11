@@ -898,6 +898,7 @@ public:
   virtual void navigate(const std::string url) = 0;
   virtual void eval(const std::string js) = 0;
   virtual void init(const std::string js) = 0;
+  virtual void move(HWND) = 0;
   virtual void resize(HWND) = 0;
 };
 
@@ -959,6 +960,10 @@ public:
         L"eval", single_threaded_vector<hstring>({winrt::to_hstring(js)}));
   }
 
+  void move(HWND wnd) override {
+    // don't do anything
+  }
+
   void resize(HWND wnd) override {
     if (m_webview == nullptr) {
       return;
@@ -1013,6 +1018,13 @@ public:
     }
     init("window.external={invoke:s=>window.chrome.webview.postMessage(s)}");
     return true;
+  }
+
+  void move(HWND wnd) override {
+    if (m_controller == nullptr) {
+      return;
+    }
+    m_controller->NotifyParentWindowPositionChanged();
   }
 
   void resize(HWND wnd) override {
@@ -1147,6 +1159,10 @@ public:
             switch (msg) {
             case WM_SIZE:
               w->m_browser->resize(hwnd);
+              break;
+            case WM_MOVE:
+            case WM_MOVING:
+              w->m_browser->move(hwnd);
               break;
             case WM_CLOSE:
               if (w->m_hide_on_close) {
