@@ -624,6 +624,7 @@ using browser_engine = gtk_webkit_engine;
 #define NSWindowStyleMaskClosable 2
 
 #define NSApplicationActivationPolicyRegular 0
+#define NSApplicationActivationPolicyAccessory 1
 
 #define WKUserScriptInjectionTimeAtDocumentStart 0
 
@@ -650,7 +651,8 @@ public:
     id app = ((id(*)(id, SEL))objc_msgSend)("NSApplication"_cls,
                                             "sharedApplication"_sel);
     ((void (*)(id, SEL, long))objc_msgSend)(
-        app, "setActivationPolicy:"_sel, NSApplicationActivationPolicyRegular);
+        // TODO app, "setActivationPolicy:"_sel, NSApplicationActivationPolicyRegular);
+        app, "setActivationPolicy:"_sel, NSApplicationActivationPolicyAccessory);
 
     // Delegate
     auto cls =
@@ -685,6 +687,8 @@ public:
               m_window, "initWithContentRect:styleMask:backing:defer:"_sel,
               CGRectMake(0, 0, 0, 0), 0, NSBackingStoreBuffered, 0);
     }
+
+    override_close_button(); // Adaptiv Network addition
 
     // Webview
     auto config =
@@ -749,19 +753,35 @@ public:
                                           m_webview);
     ((void (*)(id, SEL, id))objc_msgSend)(m_window, "makeKeyAndOrderFront:"_sel,
                                           nullptr);
+
+    // Adaptiv Networks additions vv
+
+    // Seem to need an initial 'hide:' before the GUI is shown. Without this, if
+    // in 'hide on close' mode, if the user closes (hides) the window and then
+    // quits the application (without any intervening window hide/shows), then
+    // the application will crash. This avoids this.
+    // Hide the application (& window): [app hide:app]
+    ((void (*)(id, SEL, id))objc_msgSend)(app,
+        "hide:"_sel,
+        app);
+
+    // Adaptiv Networks additions ^^
   }
   ~cocoa_wkwebview_engine() { close(); }
 
-  // implementation details references:
-  //   https://developer.apple.com/documentation/appkit/nsapplication/app_windows
-  //   https://developer.apple.com/documentation/appkit/nsapplication/1428733-hide
-  //   http://www.knowstack.com/cocoa-delegate-design-pattern/
-  //   https://medium.com/@venj/hide-window-instead-of-close-it-when-clicks-the-close-button-25768e41ee2d
-  void show(bool hide_on_close) { /* TODO: implement for Mac */ }
-  void hide() { /* TODO: implement for Mac */ }  
-
   void *window() { return (void *)m_window; }
+
   void terminate() {
+    // Adaptiv Networks additions vv
+    // Application won't exit if the window is hidden or miniaturized to the
+    // Dock.
+    restore_window_timeout(4*1000); // Wait up to 4 s.
+    // Note that 'terminate:' below causes the event loop to stop and the
+    // application to exit. The 'run' method will not exit and control will not
+    // return to it's caller. Experiments with 'stop:' also did not rectify
+    // this. Further cleanup code can be put in applicationWillTerminate: and/or
+    // its siblings.
+    // Adaptiv Networks additions ^^
     close();
     ((void (*)(id, SEL, id))objc_msgSend)("NSApp"_cls, "terminate:"_sel,
                                           nullptr);
@@ -842,12 +862,144 @@ public:
         nullptr);
   }
 
+  // Adaptiv Networks additions vv
+
+public:
+  void show(bool hide_on_close) {
+    m_hide_on_close = hide_on_close;
+    show_window();
+  }
+
+  void hide() {
+    hide_window();
+  }
+
+private:
+  // Override window close (red 'x') button to hide instead.
+  void override_close_button() {
+    // NSWindowDelegate WindowDelegate for 'windowShouldClose:'
+    // Create delegate class 'WindowDelegate'.
+    auto windel_cls = objc_allocateClassPair((Class) "NSObject"_cls, "WindowDelegate", 0);
+    class_addProtocol(windel_cls, objc_getProtocol("NSWindowDelegate"));
+    // Add 'windowShouldClose:' method to class.
+    class_addMethod(windel_cls, "windowShouldClose:"_sel,
+                    (IMP)(+[](id self, SEL, id) -> BOOL {
+                        // Get the object (this) pointer.
+                        auto w = (cocoa_wkwebview_engine *)objc_getAssociatedObject(
+                            self,
+                            "webview");
+                        assert(w);
+
+                        if (w->m_hide_on_close) {
+                          // Hide the application/window: quit is via systray or
+                          // other.
+                          w->hide_window();
+                          return 0; // Don't allow window close.
+                        }
+                        // else: allow window to close and application exit.
+                        return 1; // Allow window close.
+                    }),
+                    "B@:@");
+    objc_registerClassPair(windel_cls);
+
+    // windel = [WindowDelegate new] = [[WindowDelegate alloc] init]
+    auto windel = ((id(*)(id, SEL))objc_msgSend)((id)windel_cls, "new"_sel);
+
+    // Associate 'this' pointer for retrieval in windowShouldClose method.
+    objc_setAssociatedObject(windel, "webview", (id)this, OBJC_ASSOCIATION_ASSIGN);
+
+    // [m_window setDelegate:windel]
+    ((void (*)(id, SEL, id))objc_msgSend)(m_window, "setDelegate:"_sel,
+                                          windel);
+  }
+
+  // Make the application & window visible.
+  void show_window() {
+    // app = [NSApplication sharedApplication]
+    id app = ((id(*)(id, SEL))objc_msgSend)("NSApplication"_cls,
+        "sharedApplication"_sel);
+    assert(app);
+
+    // Unhide the application (& window): [app unhide:app]
+    ((void (*)(id, SEL, id))objc_msgSend)(app,
+        "unhide:"_sel,
+        app);
+
+    // Bring application to the front: [app activateIgnoringOtherApps:YES]
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(app,
+        "activateIgnoringOtherApps:"_sel,
+        1);
+
+    // Deminiaturize in case the window was minimized to the Dock by user.
+    // [m_window deminiaturize:m_window]
+    ((void (*)(id, SEL, id))objc_msgSend)(m_window,
+        "deminiaturize:"_sel,
+        m_window);
+  }
+
+  // Hide the application & window.
+  void hide_window() {
+    // app = [NSApplication sharedApplication]
+    id app = ((id(*)(id, SEL))objc_msgSend)("NSApplication"_cls,
+        "sharedApplication"_sel);
+    assert(app);
+
+    // Hide the application (& window): [app hide:app]
+    ((void (*)(id, SEL, id))objc_msgSend)(app,
+        "hide:"_sel,
+        app);
+  }
+
+  // Restore the window and wait until it is the main window. Will unminiaturize
+  // window from Dock, if required. Will wait at most 'timeout_ms', or
+  // indefinitely if timeout_ms = 0.
+  void restore_window_timeout(unsigned int timeout_ms) {
+    BOOL is_min;
+    BOOL is_main;
+
+    // is_min = [m_window isMiniaturized]
+    is_min = ((BOOL (*)(id, SEL))objc_msgSend)(m_window,
+        "isMiniaturized"_sel);
+    is_main = ((BOOL (*)(id, SEL))objc_msgSend)(m_window,
+            "isMainWindow"_sel);
+
+    if (is_min || !is_main) {
+      // If the window is miniaturized (minimized to the Dock) or is hidden
+      // (not main window), need to restore the window (unminiaturize and
+      // unhide) and wait until it becomes the main window. Failure to do either
+      // of these results in window close() not working and the application will
+      // not terminate (and the window and tray menu will stay around).
+      // Times measured on a development system:
+      // If miniaturized: about 450 ms.
+      // If hidden: < 10 ms.
+
+      show_window();
+
+      const unsigned int pause_ms = 10;
+      const unsigned int max_count = timeout_ms / pause_ms;
+      unsigned int count = 0;
+      do {
+        usleep(pause_ms*1000);
+        is_main = ((BOOL (*)(id, SEL))objc_msgSend)(m_window,
+            "isMainWindow"_sel);
+        ++count;
+        // Wait until main window, or too timeout (and hope for the best).
+      } while (!is_main && ((timeout_ms == 0) || (count < max_count)));
+    }
+  }
+
+  // Adaptiv Networks additions ^^
+
 private:
   virtual void on_message(const std::string msg) = 0;
   void close() { ((void (*)(id, SEL))objc_msgSend)(m_window, "close"_sel); }
   id m_window;
   id m_webview;
   id m_manager;
+
+  // Adaptiv Networks additions vv
+  bool m_hide_on_close;
+  // Adaptiv Networks additions ^^
 };
 
 using browser_engine = cocoa_wkwebview_engine;
