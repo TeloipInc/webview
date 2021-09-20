@@ -44,19 +44,29 @@ WEBVIEW_API webview_t webview_create(void *window);
 // Destroys a webview and closes the native window.
 WEBVIEW_API void webview_destroy(webview_t w);
 
+// Adaptiv Networks additions vv
+
 // Returns non-zero if webview_addview and subsequent webview calls need to 
 // happen on the same thread where webview_run will be called. 
 WEBVIEW_API int webview_init_in_run_thread(webview_t w);
+
+// Set whether the window close button hides (true) or not.
+WEBVIEW_API void webview_set_hide_on_close(webview_t w, int hide_on_close);
 
 // Adds a hidden webview to the window. If debug is non-zero - developer tools will
 // be enabled (if the platform supports them).
 WEBVIEW_API void webview_addview(webview_t w, int debug);
 
 // Shows the webview window.
-WEBVIEW_API void webview_show(webview_t w, int hide_on_close);
+WEBVIEW_API void webview_show(webview_t w);
 
 // Hides the webview window.
 WEBVIEW_API void webview_hide(webview_t w);
+
+// Set the menu item callback to 'MenuItemCallback:'. Darwin/macOS only.
+WEBVIEW_API void webview_set_callback_method(webview_t w);
+
+// Adaptiv Networks additions ^^
 
 // Runs the main loop until it's terminated. After this function exits - you
 // must destroy the webview.
@@ -119,10 +129,6 @@ WEBVIEW_API void webview_bind(webview_t w, const char *name,
 // If status is not zero - result is an error JSON object.
 WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result);
-
-// Adaptiv Networks additions vv
-WEBVIEW_API void webview_set_callback_method(webview_t w);
-// Adaptiv Networks additions ^^
 
 #ifdef __cplusplus
 }
@@ -470,6 +476,8 @@ public:
     return false;
   }
 
+  void set_hide_on_close(bool hide_on_close) { m_hide_on_close = hide_on_close; }
+
   void add_view(bool debug) {
     XInitThreads();
     gtk_init_check(0, NULL);
@@ -532,7 +540,7 @@ public:
     }
   }
 
-  void show(bool hide_on_close) { m_hide_on_close = hide_on_close; gtk_widget_show_all(m_window); }
+  void show() { gtk_widget_show_all(m_window); }
   void hide() { gtk_widget_hide(m_window); }
   void *window() { return (void *)m_window; }
   void run() { gtk_main(); }
@@ -658,9 +666,21 @@ public:
     // Application
     id app = ((id(*)(id, SEL))objc_msgSend)("NSApplication"_cls,
                                             "sharedApplication"_sel);
+    long app_policy;
+    if (m_hide_on_close) {
+      // 'Accessory':
+      // - No menu bar menus (but still allows systray / menu status item).
+      // - Not in Dock or command-tab switcher.
+      app_policy = NSApplicationActivationPolicyAccessory;
+    } else {
+      // 'Normal' application:
+      // - Has own menus (at least application).
+      // - Appears in Dock.
+      // - Appears in command-tab switcher.
+      app_policy = NSApplicationActivationPolicyRegular;
+    }
     ((void (*)(id, SEL, long))objc_msgSend)(
-        // TODO app, "setActivationPolicy:"_sel, NSApplicationActivationPolicyRegular);
-        app, "setActivationPolicy:"_sel, NSApplicationActivationPolicyAccessory);
+        app, "setActivationPolicy:"_sel, app_policy);
 
     // Delegate
     auto cls =
@@ -884,8 +904,11 @@ public:
                     "v@:@");
   }
 
-  void show(bool hide_on_close) {
+  void set_hide_on_close(bool hide_on_close) {
     m_hide_on_close = hide_on_close;
+  }
+
+  void show() {
     show_window();
   }
 
@@ -1311,6 +1334,10 @@ public:
     return true;
   }
 
+  void set_hide_on_close(bool hide_on_close) { 
+    m_hide_on_close = hide_on_close; 
+  }
+
   void add_view(bool debug) {
     if (m_window == nullptr) {
       HINSTANCE hInstance = GetModuleHandle(nullptr);
@@ -1421,10 +1448,9 @@ public:
       }
     }
   }
-  void show(bool hide_on_close) { 
+  void show() { 
     center_on_screen();
 
-    m_hide_on_close = hide_on_close; 
     ShowWindow(m_window, SW_SHOW);
     UpdateWindow(m_window);
     SetFocus(m_window);
@@ -1606,21 +1632,36 @@ WEBVIEW_API void webview_destroy(webview_t w) {
   delete static_cast<webview::webview *>(w);
 }
 
+// Adaptiv Networks additions vv
+
 WEBVIEW_API int webview_init_in_run_thread(webview_t w) {
   return static_cast<webview::webview *>(w)->init_in_run_thread();
+}
+
+WEBVIEW_API void webview_set_hide_on_close(webview_t w, int hide_on_close) {
+  static_cast<webview::webview *>(w)->set_hide_on_close(hide_on_close);
 }
 
 WEBVIEW_API void webview_addview(webview_t w, int debug) {
   static_cast<webview::webview *>(w)->add_view(debug);
 }
 
-WEBVIEW_API void webview_show(webview_t w, int hide_on_close) {
-  static_cast<webview::webview *>(w)->show(hide_on_close);
+WEBVIEW_API void webview_show(webview_t w) {
+  static_cast<webview::webview *>(w)->show();
 }
 
 WEBVIEW_API void webview_hide(webview_t w) {
   static_cast<webview::webview *>(w)->hide();
 }
+
+// Darwin/macOS only
+WEBVIEW_API void webview_set_callback_method(webview_t w) {
+#if defined(WEBVIEW_COCOA)
+  static_cast<webview::webview *>(w)->set_callback_method();
+#endif // defined(WEBVIEW_COCOA)
+}
+
+// Adaptiv Networks additions ^^
 
 WEBVIEW_API void webview_run(webview_t w) {
   static_cast<webview::webview *>(w)->run();
@@ -1676,16 +1717,6 @@ WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result) {
   static_cast<webview::webview *>(w)->resolve(seq, status, result);
 }
-
-
-// Adaptiv Networks additions vv
-// Darwin/macOS only
-WEBVIEW_API void webview_set_callback_method(webview_t w) {
-#if defined(WEBVIEW_COCOA)
-  static_cast<webview::webview *>(w)->set_callback_method();
-#endif // defined(WEBVIEW_COCOA)
-}
-// Adaptiv Networks additions ^^
 
 #endif /* WEBVIEW_HEADER */
 
