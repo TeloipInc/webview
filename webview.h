@@ -120,6 +120,10 @@ WEBVIEW_API void webview_bind(webview_t w, const char *name,
 WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result);
 
+// Adaptiv Networks additions vv
+WEBVIEW_API void webview_set_callback_method(webview_t w);
+// Adaptiv Networks additions ^^
+
 #ifdef __cplusplus
 }
 #endif
@@ -638,6 +642,10 @@ id operator"" _str(const char *s, std::size_t) {
       "NSString"_cls, "stringWithUTF8String:"_sel, s);
 }
 
+// Adaptiv Networks additions vv
+extern "C" void menuItemCallback(uintptr_t ident);
+// Adaptiv Networks additions ^^
+
 class cocoa_wkwebview_engine {
 public:
   cocoa_wkwebview_engine(void *window) : m_window(static_cast<id>(window)){}
@@ -756,6 +764,8 @@ public:
 
     // Adaptiv Networks additions vv
 
+    m_appdel_cls = cls;
+
     // Seem to need an initial 'hide:' before the GUI is shown. Without this, if
     // in 'hide on close' mode, if the user closes (hides) the window and then
     // quits the application (without any intervening window hide/shows), then
@@ -865,6 +875,15 @@ public:
   // Adaptiv Networks additions vv
 
 public:
+  void set_callback_method() {
+    class_addMethod(m_appdel_cls,
+                    "MenuItemCallback:"_sel,
+                    (IMP)(+[](id self, SEL, id sender) {
+                      menuItemCallback(reinterpret_cast<uintptr_t>(sender));
+                    }),
+                    "v@:@");
+  }
+
   void show(bool hide_on_close) {
     m_hide_on_close = hide_on_close;
     show_window();
@@ -999,6 +1018,7 @@ private:
 
   // Adaptiv Networks additions vv
   bool m_hide_on_close;
+  Class m_appdel_cls;
   // Adaptiv Networks additions ^^
 };
 
@@ -1656,6 +1676,16 @@ WEBVIEW_API void webview_return(webview_t w, const char *seq, int status,
                                 const char *result) {
   static_cast<webview::webview *>(w)->resolve(seq, status, result);
 }
+
+
+// Adaptiv Networks additions vv
+// Darwin/macOS only
+WEBVIEW_API void webview_set_callback_method(webview_t w) {
+#if defined(WEBVIEW_COCOA)
+  static_cast<webview::webview *>(w)->set_callback_method();
+#endif // defined(WEBVIEW_COCOA)
+}
+// Adaptiv Networks additions ^^
 
 #endif /* WEBVIEW_HEADER */
 
