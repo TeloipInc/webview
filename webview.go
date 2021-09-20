@@ -141,6 +141,11 @@ type WebView interface {
 	// f must be a function
 	// f must return either value and error or just error
 	Bind(name string, f interface{}) error
+
+	// Adaptiv Networks additions vv
+	// Fetch the AppDelegate Class pointer. Darwin/macOS only.
+	SetCallbackMethod(fn func(uintptr))
+	// Adaptiv Networks additions ^^
 }
 
 type webview struct {
@@ -148,10 +153,11 @@ type webview struct {
 }
 
 var (
-	m        sync.Mutex
-	index    uintptr
-	dispatch = map[uintptr]func(){}
-	bindings = map[uintptr]func(id, req string) (interface{}, error){}
+	m                  sync.Mutex
+	index              uintptr
+	dispatch           = map[uintptr]func(){}
+	bindings           = map[uintptr]func(id, req string) (interface{}, error){}
+	menuItemCallbackFn func(uintptr) // Adaptiv Networks addition
 )
 
 func boolToInt(b bool) C.int {
@@ -187,6 +193,18 @@ func (w *webview) InitInRunThread() bool {
 func (w *webview) AddWebView(debug bool) {
 	C.webview_addview(w.w, boolToInt(debug))
 }
+
+// Adaptiv Networks additions vv
+
+func (w *webview) SetCallbackMethod(fn func(uintptr)) {
+	if runtime.GOOS == "darwin" {
+		// Only support a single callback.
+		menuItemCallbackFn = fn
+		C.webview_set_callback_method(w.w)
+	}
+}
+
+// Adaptiv Networks additions ^^
 
 func (w *webview) Show(hideOnClose bool) {
 	C.webview_show(w.w, boolToInt(hideOnClose))
@@ -350,3 +368,15 @@ func (w *webview) Bind(name string, f interface{}) error {
 	C.CgoWebViewBind(w.w, cname, C.uintptr_t(index))
 	return nil
 }
+
+// Adaptiv Networks additions vv
+
+// C callback for menu items.
+//export menuItemCallback
+func menuItemCallback(ptr C.uintptr_t) {
+	if menuItemCallbackFn != nil {
+		menuItemCallbackFn(uintptr(ptr))
+	}
+}
+
+// Adaptiv Networks additions ^^
