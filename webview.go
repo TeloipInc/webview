@@ -79,12 +79,16 @@ type WebView interface {
 	// must happen on the same thread with Run().
 	InitInRunThread() bool
 
+	// SetHideOnClose sets whether the window close button hides (true) or closes
+	// (false) the window. Call only before AddWebView.
+	SetHideOnClose(hideOnClose bool)
+
 	// AddWebView adds the webview to window. If debug is non-zero - developer
 	// tools will be enabled (if the platform supports them).
 	AddWebView(debug bool)
 
 	// Show shows the WebView window created with AddWebView.
-	Show(hideOnClose bool)
+	Show()
 
 	// Hide hides the WebView window created with AddWebView
 	Hide()
@@ -186,15 +190,19 @@ func (w *webview) Destroy() {
 	C.webview_destroy(w.w)
 }
 
+// Adaptiv Networks additions vv
+
 func (w *webview) InitInRunThread() bool {
 	return intToBool(C.webview_init_in_run_thread(w.w))
+}
+
+func (w *webview) SetHideOnClose(hideOnClose bool) {
+	C.webview_set_hide_on_close(w.w, boolToInt(hideOnClose))
 }
 
 func (w *webview) AddWebView(debug bool) {
 	C.webview_addview(w.w, boolToInt(debug))
 }
-
-// Adaptiv Networks additions vv
 
 func (w *webview) SetCallbackMethod(fn func(uintptr)) {
 	if runtime.GOOS == "darwin" {
@@ -204,15 +212,15 @@ func (w *webview) SetCallbackMethod(fn func(uintptr)) {
 	}
 }
 
-// Adaptiv Networks additions ^^
-
-func (w *webview) Show(hideOnClose bool) {
-	C.webview_show(w.w, boolToInt(hideOnClose))
+func (w *webview) Show() {
+	C.webview_show(w.w)
 }
 
 func (w *webview) Hide() {
 	C.webview_hide(w.w)
 }
+
+// Adaptiv Networks additions ^^
 
 func (w *webview) Run() {
 	C.webview_run(w.w)

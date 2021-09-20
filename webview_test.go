@@ -41,7 +41,7 @@ func Example() {
 			</script>
 		</html>
 	)`)
-	w.Show(false)
+	w.Show()
 	w.Run()
 }
 
