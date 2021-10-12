@@ -745,6 +745,17 @@ public:
                                              "numberWithBool:"_sel, 1),
         "fullScreenEnabled"_str);
 
+    // Adaptiv Networks addition: fix keyboard field navigation (tab, shift-tab,
+    // space, return, etc) that already work for Windows & Linux.
+    // Equivalent Obj-C:
+    // [[config preferences] setValue:@YES forKey:@"tabFocusesLinks"];
+    ((id(*)(id, SEL, id, id))objc_msgSend)(
+        ((id(*)(id, SEL))objc_msgSend)(config, "preferences"_sel),
+        "setValue:forKey:"_sel,
+        ((id(*)(id, SEL, BOOL))objc_msgSend)("NSNumber"_cls,
+                                             "numberWithBool:"_sel, 1),
+        "tabFocusesLinks"_str);
+
     // Equivalent Obj-C:
     // [[config preferences] setValue:@YES forKey:@"javaScriptCanAccessClipboard"];
     ((id(*)(id, SEL, id, id))objc_msgSend)(
