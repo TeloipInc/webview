@@ -46,6 +46,8 @@ import "C"
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"sync"
@@ -147,6 +149,8 @@ type WebView interface {
 	Bind(name string, f interface{}) error
 
 	// Adaptiv Networks additions vv
+	// Set window icon with provided data. Windows (.ico) only.
+	SetWindowIcon(iconBytes []byte) error
 	// Fetch the AppDelegate Class pointer. Darwin/macOS only.
 	SetCallbackMethod(fn func(uintptr))
 	// Adaptiv Networks additions ^^
@@ -202,6 +206,48 @@ func (w *webview) SetHideOnClose(hideOnClose bool) {
 
 func (w *webview) AddWebView(debug bool) {
 	C.webview_addview(w.w, boolToInt(debug))
+}
+
+// SetWindowIcon() sets the window icon with image data. Currently only
+// supports Windows with .ico format. Linux support is TODO and there is no
+// equivalent for Darwin/macOS.
+func (w *webview) SetWindowIcon(iconBytes []byte) error {
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("Unsupported GOOS '%v'", runtime.GOOS)
+	}
+
+	// Create a temp file & populate with the image data, remove it after.
+	filename, err := createTmpImageFile(iconBytes)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(filename)
+
+	cstr := C.CString(filename)
+	defer C.free(unsafe.Pointer(cstr))
+
+	C.webview_set_window_icon_from_file(w.w, cstr)
+
+	return nil
+}
+
+// createTmpImageFile returns a full path to a temporary file populated with
+// the provided data. The caller is responsible for deleting the file.
+func createTmpImageFile(b []byte) (string, error) {
+	// Create unique file in default temp directory (typically
+	// \Users\<user>\AppData\Local\Temp) with prefix
+	f, err := os.CreateTemp("", "window_icon")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	if _, err = f.Write(b); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+
+	return f.Name(), nil
 }
 
 func (w *webview) SetCallbackMethod(fn func(uintptr)) {

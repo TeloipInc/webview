@@ -63,6 +63,9 @@ WEBVIEW_API void webview_show(webview_t w);
 // Hides the webview window.
 WEBVIEW_API void webview_hide(webview_t w);
 
+// Sets the window icon using image data from the specified file. Windows only.
+WEBVIEW_API void webview_set_window_icon_from_file(webview_t w, const char *filename);
+
 // Set the menu item callback to 'MenuItemCallback:'. Darwin/macOS only.
 WEBVIEW_API void webview_set_callback_method(webview_t w);
 
@@ -1509,6 +1512,12 @@ public:
   void eval(const std::string js) { m_browser->eval(js); }
   void init(const std::string js) { m_browser->init(js); }
 
+  void set_window_icon_from_file(const char *filename) {
+    HANDLE icon = LoadImage(NULL, filename, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    SendMessageW(m_window, WM_SETICON, ICON_BIG, (LPARAM)icon);
+    SendMessageW(m_window, WM_SETICON, ICON_SMALL, (LPARAM)icon);
+  }
+
 private:
   virtual void on_message(const std::string msg) = 0;
 
@@ -1663,6 +1672,13 @@ WEBVIEW_API void webview_show(webview_t w) {
 
 WEBVIEW_API void webview_hide(webview_t w) {
   static_cast<webview::webview *>(w)->hide();
+}
+
+// Windows only
+WEBVIEW_API void webview_set_window_icon_from_file(webview_t w, const char *filename) {
+#if defined(WEBVIEW_EDGE)
+  static_cast<webview::webview *>(w)->set_window_icon_from_file(filename);
+#endif // defined(WEBVIEW_EDGE)
 }
 
 // Darwin/macOS only
