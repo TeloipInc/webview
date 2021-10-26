@@ -1513,9 +1513,21 @@ public:
   void init(const std::string js) { m_browser->init(js); }
 
   void set_window_icon_from_file(const char *filename) {
-    HANDLE icon = LoadImage(NULL, filename, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
-    SendMessageW(m_window, WM_SETICON, ICON_BIG, (LPARAM)icon);
-    SendMessageW(m_window, WM_SETICON, ICON_SMALL, (LPARAM)icon);
+    // Fetch icon of preferred size, if available. Other sizes will be scaled.
+    // Observed preferred sizes of 16x16 (small) and 32x32 (big).
+    HANDLE icon;
+
+    icon = LoadImage(NULL, filename, IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+        GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+    if (icon) {
+      SendMessageW(m_window, WM_SETICON, ICON_SMALL, (LPARAM)icon);
+    }
+
+    icon = LoadImage(NULL, filename, IMAGE_ICON, GetSystemMetrics(SM_CXICON),
+        GetSystemMetrics(SM_CYICON), LR_LOADFROMFILE);
+    if (icon) {
+      SendMessageW(m_window, WM_SETICON, ICON_BIG, (LPARAM)icon);
+    }
   }
 
 private:
