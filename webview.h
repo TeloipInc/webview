@@ -1233,7 +1233,16 @@ public:
     if (m_controller == nullptr) {
       return;
     }
+
+    // NotifyParentWindowPositionChanged lets webview know about the new 
+    // location of the window
     m_controller->NotifyParentWindowPositionChanged();
+
+    // unfortunately, combobox dropdowns that are already on screen at the time
+    // of the move don't get repositioned when NotifyParentWindowPositionChanged
+    // gets called. calling SetFocus(wnd) leads to a currently shown dropdown
+    // lose focus and disappear from screen.
+    SetFocus(wnd);
   }
 
   void resize(HWND wnd) override {
