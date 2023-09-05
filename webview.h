@@ -595,7 +595,7 @@ public:
   }
 
   void eval(const std::string js) {
-    webkit_web_view_run_javascript(WEBKIT_WEB_VIEW(m_webview), js.c_str(), NULL, NULL, NULL);
+    webkit_web_view_evaluate_javascript(WEBKIT_WEB_VIEW(m_webview), js.c_str(), -1, NULL, NULL, NULL, NULL, NULL);
   }
 
 private:
